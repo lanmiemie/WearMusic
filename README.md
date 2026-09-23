@@ -1,0 +1,110 @@
+# WearMusic — Wear OS 网易云音乐播放器
+
+一款为 **Wear OS（手表）** 打造的网易云音乐播放器，基于 Jetpack Compose for Wear OS + Media3 构建，
+接入现成的网易云 API 网关模块（`core:netease`），支持在线播放、每日推荐、私人漫游、音乐云盘等完整功能。
+
+## 功能总览
+
+| 模块 | 功能 |
+|---|---|
+| 在线播放 | ExoPlayer 前台服务播放、播放/暂停/上下曲/拖动进度、歌词滚动、音质切换（128K/320K） |
+| 每日推荐 | 今日日推 + **历史日推**（最近 14 天任选日期） |
+| 私人漫游 | 无限续播（队列尾部自动追加）、不感兴趣移除 |
+| 心动模式 | 基于种子歌曲（当前播放 / 日推）+ 歌单智能推荐 |
+| 雷达歌单 | 基于听歌口味聚合（需登录） |
+| 推荐歌单 | 个性化推荐（未登录也可浏览） |
+| 排行榜 | 全部官方榜单浏览与播放 |
+| 搜索 | 单曲 / 歌单 / 歌手 / 专辑 / 播客 五类搜索 + 热搜 + 搜索建议 + 本地搜索历史 |
+| 我的音乐 | 个人歌单 / 收藏专辑 / 收藏播客 |
+| 歌单详情 | 播放、收藏/取消收藏、**隐私设置（设为隐私歌单）**、编辑歌单信息、删除歌单、创建歌单、收藏歌曲到歌单、心动模式入口 |
+| 专辑详情 | 播放、收藏/取消收藏 |
+| 播客详情 | 订阅/取消订阅、节目列表播放 |
+| 歌手页 | 热门单曲 / 全部单曲（分页）/ 专辑列表 |
+| 评论 | 歌曲 / 歌单 / 专辑 / 播客节目 / 电台评论查看、点赞、发表；热门/最新排序、分页加载 |
+| 听歌打卡 | 播放满 30 秒或过半自动向云端 `scrobble` 上报一次（每首歌去重） |
+
+## 登录
+
+支持三种方式（未登录也能以游客身份播放部分内容）：
+
+1. **扫码登录**：手机网易云音乐 App 扫二维码，二维码生成后轮询扫码状态；
+2. **手机号 + 密码**；
+3. **手机号 + 短信验证码**。
+
+登录态（cookie）持久化在本地，重启无需重新登录。也可在「账号」页选择**游客模式**直接体验。
+
+## 构建与安装
+
+### 环境要求
+
+- JDK 17+（本项目用 Zulu 20 验证）
+- Android SDK：platform `android-35`、build-tools `34.0.0`
+- Gradle 8.9（Wrapper 已配置，国内走腾讯云镜像下载）
+
+### 步骤
+
+```bash
+# 1. 配置 local.properties 指向你的 SDK
+echo "sdk.dir=/path/to/android-sdk" > local.properties
+
+# 2. 编译 Debug APK
+./gradlew :app:assembleDebug
+
+# 3. 安装到手表
+adb install app/build/outputs/apk/debug/app-debug.apk
+```
+
+> 沙箱/内网环境若无法访问 `dl.google.com`，`settings.gradle.kts` 已默认配置
+> 腾讯云 + 华为云 Maven 镜像，无需修改。
+
+## 项目结构
+
+```
+WearMusic/
+├── app/                          # Wear OS 应用
+│   └── src/main/java/com/ohmusic/wear/
+│       ├── WearApp.kt            # Application + 手动依赖注入（AppContainer）
+│       ├── MainActivity.kt
+│       ├── data/                 # 仓库层
+│       │   ├── AccountRepository.kt   # 登录态 / 游客 / cookie 持久化
+│       │   ├── MusicRepository.kt     # 全部业务数据门面（UiResult 统一返回）
+│       │   ├── ExtraNeteaseApi.kt     # 补充接口：推荐歌单 / 雷达歌单 / 歌单隐私
+│       │   └── AppPrefs.kt            # 音质等本地偏好
+│       ├── playback/
+│       │   ├── PlaybackManager.kt     # 队列 / 直链解析(8min TTL) / 打卡 / FM续播
+│       │   └── PlaybackService.kt     # Media3 MediaSessionService 前台服务
+│       └── ui/                   # Compose for Wear 界面（约 20 个屏幕）
+│           ├── home/ player/ lyrics/ daily/ fm/ heart/
+│           ├── lists/ cloud/ mine/ search/ account/ login/
+│           ├── playlist/ album/ artist/ dj/ comments/
+│           └── components/       # SongRow / MediaRow / MenuDialog 等通用件
+└── core/netease/                 # 网易云 API 模块（来自 OHMusic）
+    └── src/main/java/com/ohmusic/app/data/
+        ├── remote/NeteaseClient.kt    # OkHttp + cookie 注入 body + 业务码判定
+        └── remote/api/                # 歌曲/搜索/歌单/专辑/歌手/播客/评论/云盘… 13 个 API 类
+```
+
+## 关键实现说明
+
+- **API 网关**：所有请求走 `https://mymusic.rbook.site`，cookie 以 JSON body 的 `cookie` 字段注入
+  （非 HTTP Header）；HTTP 恒为 200，业务码在 body 的 `code` 中（301/250 视为需要登录）。
+- **直链播放**：每次播放实时换取歌曲 URL（有效期短，8 分钟 TTL 缓存）；CDN 要求
+  `Referer: https://music.163.com/`，ExoPlayer 的 HttpDataSource 与 Coil 图片加载器均已注入。
+- **听歌打卡**：Ticker 每秒轮询进度，满足「≥30 秒或过半」即调用 `/scrobble` 上报，同一首歌去重。
+- **私人漫游**：队列快耗尽时自动调用 FM 接口追加下一批，实现无限播放。
+- **历史日推**：`/recommend/songs?date=YYYY-MM-DD` 支持最近 14 天（实测游客态也可用）。
+- **歌单隐私**：网关存在 `/playlist/privacy?privacy=10|0` 接口（实测可用），用于设为隐私/公开。
+
+## 已知限制
+
+- **歌手评论**：网易云无官方「歌手页评论」端点，故歌手页不提供评论入口；歌曲 / 歌单 / 专辑 /
+  播客节目 / 电台均可查看与发表评论。
+- 部分无音源歌曲（VIP 或下架）会提示并自动跳过；连续 3 首失败自动停止播放。
+- 播客节目的「歌曲评论」入口仅对该期节目内含歌曲时可用。
+
+## 依赖
+
+- Kotlin 2.1.0 / AGP 8.7.3 / Gradle 8.9
+- Jetpack Compose for Wear OS 1.4.0（Material 2）+ Compose BOM 2024.09.03
+- Media3 1.4.1（ExoPlayer + MediaSessionService）
+- Coil 2.7.0 / kotlinx-serialization 1.8.0 / OkHttp 4.12.0 / Coroutines 1.9.0
