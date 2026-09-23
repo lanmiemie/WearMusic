@@ -7,7 +7,8 @@
 
 | 模块 | 功能 |
 |---|---|
-| 在线播放 | ExoPlayer 前台服务播放、播放/暂停/上下曲/拖动进度、歌词滚动、音质切换（128K/320K） |
+| 在线播放 | ExoPlayer 前台服务播放、播放/暂停/上下曲/拖动进度、逐行/逐字歌词、**后台自动连播**、系统媒体面板展示播放队列 |
+| 播放音质 | 标准 128K / 较高 192K / 极高 320K / 无损 FLAC，**按账号黑胶 VIP 等级动态展现**（账号页设置） |
 | 每日推荐 | 今日日推 + **历史日推**（最近 14 天任选日期） |
 | 私人漫游 | 无限续播（队列尾部自动追加）、不感兴趣移除 |
 | 心动模式 | 基于种子歌曲（当前播放 / 日推）+ 歌单智能推荐 |
@@ -21,6 +22,7 @@
 | 播客详情 | 订阅/取消订阅、节目列表播放 |
 | 歌手页 | 热门单曲 / 全部单曲（分页）/ 专辑列表 |
 | 评论 | 歌曲 / 歌单 / 专辑 / 播客节目 / 电台评论查看、点赞、发表；热门/最新排序、分页加载 |
+| 更多 | 清理缓存（图片/歌词/直链三层）、专辑封面点击查看专辑详情、关于页 |
 | 听歌打卡 | 播放满 30 秒或过半自动向云端 `scrobble` 上报一次（每首歌去重） |
 
 ## 登录
@@ -37,9 +39,12 @@
 
 ### 环境要求
 
-- JDK 17+（本项目用 Zulu 20 验证）
-- Android SDK：platform `android-35`、build-tools `34.0.0`
+- JDK 17+
+- Android SDK：compileSdk 36（platform `android-36`），minSdk 30 / targetSdk 34
 - Gradle 8.9（Wrapper 已配置，国内走腾讯云镜像下载）
+
+应用包名：`com.shijiu.wearmusic`。Release 签名使用 `keystore/wear-music.jks`
+（别名 `wearmusic`，密码见 `app/build.gradle.kts`，仅供个人使用请勿外传）。
 
 ### 步骤
 
@@ -62,21 +67,21 @@ adb install app/build/outputs/apk/debug/app-debug.apk
 ```
 WearMusic/
 ├── app/                          # Wear OS 应用
-│   └── src/main/java/com/ohmusic/wear/
+│   └── src/main/java/com/shijiu/wearmusic/
 │       ├── WearApp.kt            # Application + 手动依赖注入（AppContainer）
 │       ├── MainActivity.kt
 │       ├── data/                 # 仓库层
-│       │   ├── AccountRepository.kt   # 登录态 / 游客 / cookie 持久化
+│       │   ├── AccountRepository.kt   # 登录态 / 游客 / cookie 持久化 / VIP 等级
 │       │   ├── MusicRepository.kt     # 全部业务数据门面（UiResult 统一返回）
 │       │   ├── ExtraNeteaseApi.kt     # 补充接口：推荐歌单 / 雷达歌单 / 歌单隐私
-│       │   └── AppPrefs.kt            # 音质等本地偏好
+│       │   └── AppPrefs.kt            # 音质档位(AudioQuality) / 搜索历史等本地偏好
 │       ├── playback/
-│       │   ├── PlaybackManager.kt     # 队列 / 直链解析(8min TTL) / 打卡 / FM续播
+│       │   ├── PlaybackManager.kt     # 队列镜像 / 直链解析(8min TTL) / 预解析续播 / 打卡
 │       │   └── PlaybackService.kt     # Media3 MediaSessionService 前台服务
-│       └── ui/                   # Compose for Wear 界面（约 20 个屏幕）
+│       └── ui/                   # Compose for Wear 界面（约 20 个屏幕，Material 3 Expressive）
 │           ├── home/ player/ lyrics/ daily/ fm/ heart/
 │           ├── lists/ cloud/ mine/ search/ account/ login/
-│           ├── playlist/ album/ artist/ dj/ comments/
+│           ├── playlist/ album/ artist/ dj/ comments/ about/
 │           └── components/       # SongRow / MediaRow / MenuDialog 等通用件
 └── core/netease/                 # 网易云 API 模块（来自 OHMusic）
     └── src/main/java/com/ohmusic/app/data/
@@ -90,6 +95,11 @@ WearMusic/
   （非 HTTP Header）；HTTP 恒为 200，业务码在 body 的 `code` 中（301/250 视为需要登录）。
 - **直链播放**：每次播放实时换取歌曲 URL（有效期短，8 分钟 TTL 缓存）；CDN 要求
   `Referer: https://music.163.com/`，ExoPlayer 的 HttpDataSource 与 Coil 图片加载器均已注入。
+- **播放队列镜像**：整个队列镜像为 ExoPlayer playlist，未播条目先挂占位 URI，
+  距结束不足 20 秒（或切歌后）时实时解析并 `replaceMediaItem` 原位替换——
+  后台播完一首自动续播不断流，系统媒体面板也能看到完整播放列表。
+- **音质**：`/song/url` 的 `br` 参数（128000/192000/320000/999000），
+  无损需黑胶 VIP；账号页的音质选项按账号 `vipType` 等级动态展现，切换后即时生效。
 - **听歌打卡**：Ticker 每秒轮询进度，满足「≥30 秒或过半」即调用 `/scrobble` 上报，同一首歌去重。
 - **私人漫游**：队列快耗尽时自动调用 FM 接口追加下一批，实现无限播放。
 - **历史日推**：`/recommend/songs?date=YYYY-MM-DD` 支持最近 14 天（实测游客态也可用）。
@@ -105,6 +115,6 @@ WearMusic/
 ## 依赖
 
 - Kotlin 2.1.0 / AGP 8.7.3 / Gradle 8.9
-- Jetpack Compose for Wear OS 1.4.0（Material 2）+ Compose BOM 2024.09.03
+- Jetpack Compose for Wear OS **1.6.2（Material 3 Expressive）** + Compose BOM 2025.09.00
 - Media3 1.4.1（ExoPlayer + MediaSessionService）
 - Coil 2.7.0 / kotlinx-serialization 1.8.0 / OkHttp 4.12.0 / Coroutines 1.9.0
