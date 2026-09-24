@@ -30,7 +30,8 @@ class AccountRepository(
     private val scope: CoroutineScope,
     private val authApi: AuthApi,
     private val cookieStore: CookieStore,
-    private val playlistApi: CloudPlaylistApi
+    private val playlistApi: CloudPlaylistApi,
+    private val prefs: AppPrefs
 ) {
     private val _state = MutableStateFlow<AccountState>(AccountState.Loading)
     val state: StateFlow<AccountState> = _state.asStateFlow()
@@ -50,15 +51,38 @@ class AccountRepository(
             else -> "未登录"
         }
 
+    /**
+     * 用户是否在本会话中「主动」选择了游客模式（登录页按钮）。
+     * 区别于启动兜底的静默游客登录：前者放行进入主界面，后者仍引导去登录页。
+     */
+    @Volatile
+    var userPickedGuest: Boolean = false
+        private set
+
+    /** 统一的状态写入：同时把登录态落盘，供下次启动判断是否显示登录进度屏。 */
+    private fun setState(s: AccountState) {
+        _state.value = s
+        if (s !is AccountState.Loading) {
+            prefs.lastSessionLoggedIn = s is AccountState.LoggedIn
+        }
+    }
+
     init {
         scope.launch { bootstrap() }
     }
 
     private suspend fun bootstrap() {
+        if (!prefs.lastSessionLoggedIn) {
+            // 上次退出时不是登录态：不自动登录，停在未登录，由 UI 引导到登录页
+            setState(AccountState.LoggedOut)
+            return
+        }
+        // 上次是登录态：用本地 cookie 恢复会话（期间 UI 显示登录进度屏）
         if (cookieStore.getCookie().isNotEmpty()) {
             refresh()
         }
-        // 仍无会话则静默游客登录，保证搜索 / 榜单 / 试听开箱可用
+        // 仍未建立会话（cookie 失效 / 网络失败）：静默降级游客会话保证浏览可用；
+        // 但 userPickedGuest 仍为 false，UI 会引导用户重新登录
         if (_state.value is AccountState.Loading || _state.value is AccountState.LoggedOut) {
             loginGuestInternal()
         }
@@ -68,28 +92,32 @@ class AccountRepository(
     suspend fun refresh() {
         runCatching { authApi.getAccount() }.fold(
             onSuccess = { account ->
-                _state.value =
+                setState(
                     if (account.anonymous || account.userId <= 0) AccountState.Guest
                     else AccountState.LoggedIn(account)
+                )
             },
             onFailure = {
                 cookieStore.clear()
-                _state.value = AccountState.LoggedOut
+                setState(AccountState.LoggedOut)
             }
         )
     }
 
-    /** 游客登录（供手动重试）。 */
-    suspend fun loginGuest(): Boolean = loginGuestInternal()
+    /** 游客登录（登录页「游客模式」按钮：用户主动选择，放行进入主界面）。 */
+    suspend fun loginGuest(): Boolean {
+        userPickedGuest = true
+        return loginGuestInternal()
+    }
 
     private suspend fun loginGuestInternal(): Boolean {
         val cookie = runCatching { authApi.loginAnonymously() }.getOrNull()
         if (cookie.isNullOrBlank()) {
-            _state.value = AccountState.LoggedOut
+            setState(AccountState.LoggedOut)
             return false
         }
         cookieStore.saveCookie(cookie)
-        _state.value = AccountState.Guest
+        setState(AccountState.Guest)
         return true
     }
 
@@ -121,7 +149,7 @@ class AccountRepository(
     suspend fun logout() {
         authApi.logout()
         cookieStore.clear()
-        _state.value = AccountState.LoggedOut
+        setState(AccountState.LoggedOut)
     }
 
     /** 第一个自己创建的歌单 id（心动模式默认参照歌单）。 */

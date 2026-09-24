@@ -32,7 +32,7 @@ import com.shijiu.wearmusic.ui.playlist.PlaylistEditScreen
 import com.shijiu.wearmusic.ui.search.SearchScreen
 
 @Composable
-fun AppNavHost() {
+fun AppNavHost(forceLogin: Boolean = false) {
     val navController = rememberSwipeDismissableNavController()
 
     // 任意列表点播后自动打开播放页（launchSingleTop 防止重复压栈）
@@ -40,6 +40,11 @@ fun AppNavHost() {
         ServiceLocator.container.playbackManager.openPlayerRequests.collect {
             navController.navigate(Routes.PLAYER) { launchSingleTop = true }
         }
+    }
+
+    // 上次退出时非登录态：进入应用后先弹登录页（登录 / 游客模式后 popBackStack 回主界面）
+    LaunchedEffect(Unit) {
+        if (forceLogin) navController.navigate(Routes.LOGIN)
     }
 
     SwipeDismissableNavHost(

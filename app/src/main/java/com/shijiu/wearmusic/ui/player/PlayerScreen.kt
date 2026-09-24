@@ -2,6 +2,7 @@ package com.shijiu.wearmusic.ui.player
 
 import android.content.Context
 import android.media.AudioManager
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -67,6 +68,7 @@ import com.shijiu.wearmusic.ui.TextSecondary
 import com.shijiu.wearmusic.ui.components.InlineNotice
 import com.shijiu.wearmusic.ui.components.MenuDialog
 import com.shijiu.wearmusic.ui.components.MenuItem
+import com.shijiu.wearmusic.ui.components.artistMenuItems
 import com.shijiu.wearmusic.util.LrcLine
 import com.shijiu.wearmusic.util.LrcParser
 import com.shijiu.wearmusic.util.TimeFmt
@@ -132,7 +134,8 @@ fun PlayerScreen(nav: NavHostController) {
                         color = Color.White,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        textAlign = TextAlign.Center
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.basicMarquee()
                     )
                     Text(
                         song.artist,
@@ -140,7 +143,8 @@ fun PlayerScreen(nav: NavHostController) {
                         color = TextSecondary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        textAlign = TextAlign.Center
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.basicMarquee()
                     )
                 }
             }
@@ -230,13 +234,7 @@ fun PlayerScreen(nav: NavHostController) {
                         }
                     )
                 }
-                song.artistId?.takeIf { it > 0 }?.let {
-                    add(
-                        MenuItem(Icons.Filled.Whatshot, "查看歌手「${song.artist}」") {
-                            nav.navigate(Routes.artist(it))
-                        }
-                    )
-                }
+                addAll(artistMenuItems(song, nav) { name -> "查看歌手「$name」" })
                 song.songId?.let { id ->
                     add(
                         MenuItem(Icons.Filled.ChatBubble, "查看歌曲评论") {

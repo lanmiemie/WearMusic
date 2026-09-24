@@ -60,6 +60,7 @@ import com.shijiu.wearmusic.ui.components.MediaRow
 import com.shijiu.wearmusic.ui.components.MenuDialog
 import com.shijiu.wearmusic.ui.components.MenuItem
 import com.shijiu.wearmusic.ui.components.SongRow
+import com.shijiu.wearmusic.ui.components.artistMenuItems
 import kotlinx.coroutines.delay
 
 /** 内容搜索：单曲 / 歌单 / 歌手 / 专辑 / 播客 + 热搜、联想与历史。 */
@@ -303,11 +304,7 @@ fun SearchScreen(nav: NavHostController) {
             title = song.title,
             onDismiss = { menuSong = null },
             items = buildList {
-                song.artistId?.takeIf { it > 0 }?.let {
-                    add(MenuItem(Icons.Filled.Person, "歌手：${song.artist}") {
-                        nav.navigate(Routes.artist(it))
-                    })
-                }
+                addAll(artistMenuItems(song, nav))
                 song.songId?.let { id ->
                     add(MenuItem(Icons.Filled.ChatBubble, "歌曲评论") {
                         nav.navigate(Routes.comments(0, id, song.title))

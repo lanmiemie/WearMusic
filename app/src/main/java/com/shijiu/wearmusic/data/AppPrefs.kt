@@ -43,6 +43,14 @@ class AppPrefs(context: Context) {
         get() = sp.getInt(KEY_BITRATE, 320_000)
         set(value) = sp.edit().putInt(KEY_BITRATE, value).apply()
 
+    /**
+     * 最近一次会话是否为已登录账号（随账号状态实时写入）。
+     * 启动时据此分流：登录态 → 显示登录进度屏恢复会话；非登录态 → 直接进登录页。
+     */
+    var lastSessionLoggedIn: Boolean
+        get() = sp.getBoolean(KEY_LAST_LOGGED_IN, false)
+        set(value) = sp.edit().putBoolean(KEY_LAST_LOGGED_IN, value).apply()
+
 
     fun searchHistory(): List<String> =
         sp.getString(KEY_SEARCH_HISTORY, null)?.split("\u0001")?.filter { it.isNotBlank() }.orEmpty()
@@ -60,6 +68,7 @@ class AppPrefs(context: Context) {
 
     private companion object {
         const val KEY_BITRATE = "bitrate"
+        const val KEY_LAST_LOGGED_IN = "last_session_logged_in"
         const val KEY_SEARCH_HISTORY = "search_history"
         const val MAX_HISTORY = 8
     }

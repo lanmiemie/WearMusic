@@ -55,6 +55,7 @@ import com.shijiu.wearmusic.ui.components.InlineNotice
 import com.shijiu.wearmusic.ui.components.MenuDialog
 import com.shijiu.wearmusic.ui.components.MenuItem
 import com.shijiu.wearmusic.ui.components.SongRow
+import com.shijiu.wearmusic.ui.components.artistMenuItems
 import com.shijiu.wearmusic.ui.components.deleteMenuItem
 import com.shijiu.wearmusic.util.TimeFmt
 import kotlinx.coroutines.launch
@@ -271,11 +272,7 @@ fun PlaylistDetailScreen(nav: NavHostController, playlistId: Long) {
             title = song.title,
             onDismiss = { menuSong = null },
             items = buildList {
-                song.artistId?.takeIf { it > 0 }?.let {
-                    add(MenuItem(Icons.Filled.Person, "歌手：${song.artist}") {
-                        nav.navigate(Routes.artist(it))
-                    })
-                }
+                addAll(artistMenuItems(song, nav))
                 song.albumId.takeIf { it > 0 }?.let {
                     add(MenuItem(Icons.Filled.Album, "专辑：${song.album}") {
                         nav.navigate(Routes.album(it))

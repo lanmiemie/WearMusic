@@ -155,7 +155,11 @@ object SongMapper {
             songId = dto.id,
             coverUrl = cover,
             smallCoverUrl = cover?.withNetEaseCoverSize(ArtworkSize.Thumb),
-            artistId = dto.resolvedArtists.firstOrNull()?.id?.takeIf { it > 0 }
+            artistId = dto.resolvedArtists.firstOrNull()?.id?.takeIf { it > 0 },
+            artistIds = dto.resolvedArtists
+                .filter { it.id > 0 }
+                .joinToString("/") { it.id.toString() }
+                .takeIf { it.isNotBlank() }
         )
     }
 

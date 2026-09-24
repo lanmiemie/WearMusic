@@ -1,6 +1,7 @@
 package com.shijiu.wearmusic.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -31,10 +32,13 @@ import androidx.wear.compose.material3.Icon
 import androidx.wear.compose.material3.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Person
+import androidx.navigation.NavHostController
 import com.ohmusic.app.data.model.Song
 import com.shijiu.wearmusic.ui.CardBg
 import com.shijiu.wearmusic.ui.CoverImage
 import com.shijiu.wearmusic.ui.NeteaseRed
+import com.shijiu.wearmusic.ui.Routes
 import com.shijiu.wearmusic.ui.SectionTitle
 import com.shijiu.wearmusic.ui.TextSecondary
 import com.shijiu.wearmusic.ui.chipColors
@@ -65,14 +69,16 @@ fun SongRow(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 color = if (isCurrent) NeteaseRed else Color.White,
-                fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal
+                fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
+                modifier = Modifier.basicMarquee()
             )
             Text(
                 song.artist,
                 fontSize = 11.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                color = TextSecondary
+                color = TextSecondary,
+                modifier = Modifier.basicMarquee()
             )
         }
         if (onMenu != null) {
@@ -113,14 +119,16 @@ fun MediaRow(
                 fontSize = 13.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                color = Color.White
+                color = Color.White,
+                modifier = Modifier.basicMarquee()
             )
             Text(
                 subtitle,
                 fontSize = 11.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                color = TextSecondary
+                color = TextSecondary,
+                modifier = Modifier.basicMarquee()
             )
         }
         if (badge != null) {
@@ -152,6 +160,37 @@ data class MenuItem(
     val danger: Boolean = false,
     val action: () -> Unit
 )
+
+/**
+ * 构建「歌手」菜单项。
+ *
+ * - 单个歌手 → 一项，直接进该歌手页；
+ * - 多个歌手 → 每位歌手单独一项，点击进入各自的歌手页。
+ *   名字按 [Song.artist] 的 "/" 分段与 [Song.artistIdList] 按 index 一一对应；
+ *   若歌手名本身含 "/" 导致段数对不上，则退回「歌手N」占位，保证跳转的 id 不串位。
+ *
+ * [labelFor] 允许调用方自定义文案（如播放页的「查看歌手「xxx」」）。
+ */
+fun artistMenuItems(
+    song: Song,
+    nav: NavHostController,
+    labelFor: (name: String) -> String = { "歌手：$it" }
+): List<MenuItem> {
+    val ids = song.artistIdList
+    if (ids.isEmpty()) return emptyList()
+    if (ids.size == 1) {
+        return listOf(MenuItem(Icons.Filled.Person, labelFor(song.artist)) {
+            nav.navigate(Routes.artist(ids[0]))
+        })
+    }
+    val names = song.artist.split("/")
+    return ids.mapIndexed { idx, id ->
+        val name = if (names.size == ids.size) names[idx] else "歌手${idx + 1}"
+        MenuItem(Icons.Filled.Person, labelFor(name)) {
+            nav.navigate(Routes.artist(id))
+        }
+    }
+}
 
 /** 全屏菜单对话框（歌曲操作等）。Material 3 移除了 wear Dialog，改用平台 Dialog + 遮罩。 */
 @Composable

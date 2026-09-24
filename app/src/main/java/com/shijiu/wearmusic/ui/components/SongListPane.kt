@@ -1,6 +1,7 @@
 package com.shijiu.wearmusic.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -93,17 +94,23 @@ fun SongListPane(
                     color = Color.White,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(horizontal = 20.dp)
+                    modifier = Modifier
+                        .padding(horizontal = 20.dp)
+                        .basicMarquee()
                 )
                 subtitle?.let {
-                    Text(
-                        it,
-                        fontSize = 11.sp,
-                        color = TextSecondary,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(horizontal = 24.dp)
-                    )
+                    // 多行副标题拆行：每行超宽时独立滚动（歌手名等不被截断）
+                    it.split("\n").forEach { line ->
+                        Text(
+                            line,
+                            fontSize = 11.sp,
+                            color = TextSecondary,
+                            maxLines = 1,
+                            modifier = Modifier
+                                .padding(horizontal = 24.dp)
+                                .basicMarquee()
+                        )
+                    }
                 }
             }
         }
@@ -147,11 +154,7 @@ fun SongListPane(
             title = song.title,
             onDismiss = { menuSong = null },
             items = buildList {
-                song.artistId?.takeIf { it > 0 }?.let {
-                    add(MenuItem(Icons.Filled.Person, "歌手：${song.artist}") {
-                        nav.navigate(Routes.artist(it))
-                    })
-                }
+                addAll(artistMenuItems(song, nav))
                 song.albumId.takeIf { it > 0 }?.let {
                     add(MenuItem(Icons.Filled.Album, "专辑：${song.album}") {
                         nav.navigate(Routes.album(it))

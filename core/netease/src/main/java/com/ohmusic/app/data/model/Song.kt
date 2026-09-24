@@ -48,8 +48,18 @@ data class Song(
      */
     val smallCoverUrl: String? = null,
     /** 网易云主歌手 id，仅 [source] 为 `netease` 时有值，用于从歌曲跳转歌手页。 */
-    val artistId: Long? = null
+    val artistId: Long? = null,
+    /**
+     * 网易云**全部**歌手 id，按 "/" 拼接，与 [artist] 里的名字逐位对应，
+     * 仅 [source] 为 `netease` 时有值。多歌手曲目据此为每位歌手生成独立入口。
+     */
+    val artistIds: String? = null
 ) {
     val isLocal: Boolean get() = source == SongSource.LOCAL
     val isOnline: Boolean get() = source == SongSource.NETEASE
+
+    /** 全部有效歌手 id；[artistIds] 缺失时退回 [artistId]，保证旧数据仍可跳转主歌手。 */
+    val artistIdList: List<Long>
+        get() = artistIds?.split("/")?.mapNotNull { it.toLongOrNull() }?.filter { it > 0 }
+            ?: listOfNotNull(artistId?.takeIf { it > 0 })
 }

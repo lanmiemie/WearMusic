@@ -41,7 +41,7 @@ class AppContainer(context: Context) {
 
     // ── 应用层 ──────────────────────────────────────────────────
     val prefs = AppPrefs(appContext)
-    val accountRepo = AccountRepository(appScope, authApi, cookieStore, playlistApi)
+    val accountRepo = AccountRepository(appScope, authApi, cookieStore, playlistApi, prefs)
     val musicRepo = MusicRepository(
         accountRepo, songApi, searchApi, recommendApi, likeApi, playlistApi,
         driveApi, commentApi, fmApi, djApi, artistApi, albumApi, extraApi
