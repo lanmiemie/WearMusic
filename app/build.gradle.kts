@@ -12,8 +12,8 @@ android {
         applicationId = "com.shijiu.wearmusic"
         minSdk = 30
         targetSdk = 34
-        versionCode = 2
-        versionName = "1.0.1"
+        versionCode = 3
+        versionName = "1.0.2"
     }
 
     signingConfigs {
@@ -27,8 +27,10 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
-            isShrinkResources = false
+            // R8 混淆压缩 + 无用资源裁剪：material-icons-extended 等大依赖
+            // 未引用的图标/类全量打进 dex 会让 APK 超过 50MB，压缩后大幅缩小
+            isMinifyEnabled = true
+            isShrinkResources = true
             signingConfig = signingConfigs.getByName("release")
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }

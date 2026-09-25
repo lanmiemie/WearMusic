@@ -55,7 +55,7 @@ fun AppNavHost(forceLogin: Boolean = false) {
         composable(Routes.LOGIN) { LoginScreen(navController) }
         composable(Routes.ACCOUNT) { AccountScreen(navController) }
         composable(Routes.PLAYER) { PlayerScreen(navController) }
-        composable(Routes.LYRICS) { LyricsScreen() }
+        composable(Routes.LYRICS) { LyricsScreen(navController) }
         composable(Routes.DAILY) { DailyScreen(navController) }
         composable(Routes.FM) { FmScreen(navController) }
         composable(Routes.HEART) { HeartScreen(navController) }

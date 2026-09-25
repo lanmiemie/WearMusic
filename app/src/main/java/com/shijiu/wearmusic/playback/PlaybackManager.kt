@@ -43,6 +43,10 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.random.Random
+
+/** 播放模式：顺序播放 / 随机播放 / 单曲循环。 */
+enum class PlayMode { ORDER, SHUFFLE, REPEAT_ONE }
 
 /**
  * 播放管理器：队列 / 直链解析 / 打卡上报 / 私人漫游尾部追加。
@@ -85,6 +89,11 @@ class PlaybackManager(
 
     private val _notice = MutableStateFlow<String?>(null)
     val notice: StateFlow<String?> = _notice.asStateFlow()
+
+    private val _playMode = MutableStateFlow(PlayMode.ORDER)
+
+    /** 当前播放模式（顺序 / 随机 / 单曲循环），播放页循环切换。 */
+    val playMode: StateFlow<PlayMode> = _playMode.asStateFlow()
 
     /** 用户主动点播后请求打开播放页的事件（切歌/自动连播不发射）。 */
     private val _openPlayerRequests = MutableSharedFlow<Unit>(extraBufferCapacity = 4)
@@ -229,11 +238,43 @@ class PlaybackManager(
     }
 
     fun next() {
+        // 随机模式：在现有队列里随机挑一首不同的（不触发尾部加载）
+        if (_playMode.value == PlayMode.SHUFFLE && _queue.value.size > 1) {
+            playAt(randomIndexExceptCurrent())
+            return
+        }
         if (_currentIndex.value < _queue.value.lastIndex) {
             playAt(_currentIndex.value + 1)
         } else {
             loadMoreThenContinue()
         }
+    }
+
+    /** 循环切换播放模式：顺序 → 随机 → 单曲循环 → 顺序。 */
+    fun cyclePlayMode() {
+        _playMode.value = when (_playMode.value) {
+            PlayMode.ORDER -> PlayMode.SHUFFLE
+            PlayMode.SHUFFLE -> PlayMode.REPEAT_ONE
+            PlayMode.REPEAT_ONE -> PlayMode.ORDER
+        }
+        applyPlayModeToPlayer()
+    }
+
+    private fun applyPlayModeToPlayer() {
+        player?.repeatMode = if (_playMode.value == PlayMode.REPEAT_ONE) {
+            Player.REPEAT_MODE_ONE
+        } else {
+            Player.REPEAT_MODE_OFF
+        }
+    }
+
+    private fun randomIndexExceptCurrent(): Int {
+        val size = _queue.value.size.coerceAtLeast(1)
+        var target = _currentIndex.value
+        while (target == _currentIndex.value) {
+            target = Random.nextInt(size)
+        }
+        return target
     }
 
     fun previous() {
@@ -272,6 +313,7 @@ class PlaybackManager(
                 val url = resolveUrl(song)
                 withContext(Dispatchers.Main) {
                     val p = player ?: return@withContext
+                    applyPlayModeToPlayer()
                     val items = _queue.value.map { s ->
                         val resolved = if (s.songId == song.songId) url else null
                         buildItem(s, resolved)
@@ -463,7 +505,8 @@ class PlaybackManager(
             // 或已播歌曲的直链过期 → 现场重新解析重播一次；再次失败交由 skipCurrent 推进
             if (consecutiveErrors == 0 && song != null && idx < p.mediaItemCount) {
                 acquireAdvanceWakeLock()
-                playAt(idx)
+                // 占位项不可播：顺序模式原位重解析重播；随机模式随机跳一首（自动续播随机化）
+                playAt(if (_playMode.value == PlayMode.SHUFFLE) randomIndexExceptCurrent() else idx)
                 return
             }
             postNotice("播放出错，已尝试跳过")

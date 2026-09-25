@@ -1,6 +1,9 @@
 package com.shijiu.wearmusic.ui.player
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -17,20 +20,21 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.navigation.NavHostController
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
 import androidx.wear.compose.foundation.lazy.ScalingLazyListState
-import androidx.wear.compose.material3.Text
 import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
+import androidx.wear.compose.material3.Text
 import com.shijiu.wearmusic.ServiceLocator
-import com.shijiu.wearmusic.ui.NeteaseRed
-import com.shijiu.wearmusic.ui.ScreenScaffold
-import com.shijiu.wearmusic.ui.TextSecondary
 import com.shijiu.wearmusic.data.UiResult
+import com.shijiu.wearmusic.ui.NeteaseRed
+import com.shijiu.wearmusic.ui.TextSecondary
 import com.shijiu.wearmusic.util.LrcLine
 import com.shijiu.wearmusic.util.LrcParser
 import com.shijiu.wearmusic.util.YrcLine
@@ -38,14 +42,15 @@ import com.shijiu.wearmusic.util.YrcParser
 import com.shijiu.wearmusic.util.rememberLyricPositionMs
 
 /**
- * 全屏歌词页：随播放进度自动滚动。
+ * 全屏歌词页：背景与播放页一致（封面高斯模糊 + 暗化），随播放进度自动滚动，
+ * 向右滑返回播放页，点击任意歌词行跳转播放到该行。
  *
  * 优先逐字歌词（yrc）：当前行卡拉OK式逐字点亮；
  * 无 yrc 时退回行级 LRC 高亮。活动行下标由帧级时钟派生，
  * 只在换行时才触发重组（derivedStateOf），行内推进仅重绘。
  */
 @Composable
-fun LyricsScreen() {
+fun LyricsScreen(nav: NavHostController) {
     val container = ServiceLocator.container
     val playback = container.playbackManager
     val musicRepo = container.musicRepo
@@ -115,29 +120,45 @@ fun LyricsScreen() {
         }
     }
 
-    ScreenScaffold(showTimeText = false) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            // 向右滑返回播放页；ScalingLazyColumn 只消费纵向滚动，横向拖动落到这里
+            .pointerInput(Unit) {
+                var totalX = 0f
+                val threshold = 90.dp.toPx()
+                detectHorizontalDragGestures(
+                    onDragStart = { totalX = 0f },
+                    onDragEnd = { if (totalX > threshold) nav.popBackStack() },
+                    onHorizontalDrag = { change, amount ->
+                        if (!change.isConsumed) totalX += amount
+                        change.consume()
+                    }
+                )
+            }
+    ) {
+        BlurredCoverBackdrop(song?.coverUrl)
+
         ScalingLazyColumn(
             modifier = Modifier.fillMaxSize(),
             state = listState,
             contentPadding = PaddingValues(top = 90.dp, bottom = 110.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             item {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp)
-                ) {
-                    Text(
-                        song?.title ?: "歌词",
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        textAlign = TextAlign.Center
-                    )
-                }
+                Text(
+                    song?.title ?: "歌词",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp)
+                )
             }
             when {
                 yrc == null -> item {
@@ -146,7 +167,9 @@ fun LyricsScreen() {
                 hasYrc -> items(yrc.size) { i ->
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { playback.seekTo(yrc[i].startMs) }
                     ) {
                         if (i == active) {
                             KaraokeLineText(
@@ -180,7 +203,9 @@ fun LyricsScreen() {
                 hasLrc -> items(lrcLines.size) { i ->
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { playback.seekTo(lrcLines[i].timeMs) }
                     ) {
                         Text(
                             lrcLines[i].text,
