@@ -11,10 +11,13 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -335,5 +338,59 @@ fun InlineNotice(text: String?) {
             .padding(horizontal = 12.dp, vertical = 6.dp)
     ) {
         Text(text, fontSize = 11.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+/**
+ * 消息弹窗：展示必须让用户看清完整内容的消息（如听歌打卡失败的真实原因）。
+ * 与轻提示不同：不自动消失，需点「知道了」关闭；长文本可上下滚动。
+ */
+@Composable
+fun MessageDialog(
+    showDialog: Boolean,
+    title: String,
+    message: String,
+    dismissText: String = "知道了",
+    onDismiss: () -> Unit
+) {
+    if (!showDialog) return
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.85f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp)
+            ) {
+                Text(title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = NeteaseRed)
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    message,
+                    fontSize = 11.sp,
+                    lineHeight = 16.sp,
+                    color = Color.White.copy(alpha = 0.88f),
+                    modifier = Modifier
+                        .heightIn(max = 150.dp)
+                        .verticalScroll(rememberScrollState())
+                )
+                Spacer(Modifier.height(14.dp))
+                Button(
+                    onClick = onDismiss,
+                    modifier = Modifier.height(38.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color.White,
+                        contentColor = Color.Black
+                    )
+                ) {
+                    Text(dismissText, fontSize = 12.sp)
+                }
+            }
+        }
     }
 }

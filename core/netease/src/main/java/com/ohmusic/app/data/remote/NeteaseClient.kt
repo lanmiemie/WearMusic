@@ -55,6 +55,14 @@ class NeteaseClient(
     private val jsonMediaType = NeteaseConstants.CONTENT_TYPE_JSON.toMediaType()
 
     /**
+     * 当前登录 cookie 原始串（未登录时为空串）。
+     *
+     * 供绕过网关、直连网易服务器的场景使用（如 [NcblScrobbler] 的
+     * NCBL 桌面客户端日志打卡协议——那条链路不走本网关）。
+     */
+    fun cookie(): String = cookieStore.getCookie()
+
+    /**
      * 发送带 cookie 的 POST 请求。
      *
      * @param path 以 `/` 开头的接口路径，可自带查询参数。

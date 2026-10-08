@@ -1,7 +1,10 @@
 package com.shijiu.wearmusic.ui
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.navigation.NavHostController
 import androidx.wear.compose.navigation.SwipeDismissableNavHost
 import androidx.wear.compose.navigation.composable
@@ -12,6 +15,7 @@ import com.shijiu.wearmusic.ui.account.AccountScreen
 import com.shijiu.wearmusic.ui.album.AlbumDetailScreen
 import com.shijiu.wearmusic.ui.artist.ArtistScreen
 import com.shijiu.wearmusic.ui.comments.CommentsScreen
+import com.shijiu.wearmusic.ui.components.MessageDialog
 import com.shijiu.wearmusic.ui.cloud.CloudScreen
 import com.shijiu.wearmusic.ui.daily.DailyScreen
 import com.shijiu.wearmusic.ui.dj.DjDetailScreen
@@ -34,10 +38,11 @@ import com.shijiu.wearmusic.ui.search.SearchScreen
 @Composable
 fun AppNavHost(forceLogin: Boolean = false) {
     val navController = rememberSwipeDismissableNavController()
+    val playback = ServiceLocator.container.playbackManager
 
     // 任意列表点播后自动打开播放页（launchSingleTop 防止重复压栈）
     LaunchedEffect(Unit) {
-        ServiceLocator.container.playbackManager.openPlayerRequests.collect {
+        playback.openPlayerRequests.collect {
             navController.navigate(Routes.PLAYER) { launchSingleTop = true }
         }
     }
@@ -47,10 +52,14 @@ fun AppNavHost(forceLogin: Boolean = false) {
         if (forceLogin) navController.navigate(Routes.LOGIN)
     }
 
-    SwipeDismissableNavHost(
-        navController = navController,
-        startDestination = Routes.HOME
-    ) {
+    // 听歌打卡失败详情：后台播放时可能在任意页面发生，全局挂载可滚动弹窗
+    val scrobbleAlert by playback.scrobbleAlert.collectAsState()
+
+    Box {
+        SwipeDismissableNavHost(
+            navController = navController,
+            startDestination = Routes.HOME
+        ) {
         composable(Routes.HOME) { HomeScreen(navController) }
         composable(Routes.LOGIN) { LoginScreen(navController) }
         composable(Routes.ACCOUNT) { AccountScreen(navController) }
@@ -105,5 +114,14 @@ fun AppNavHost(forceLogin: Boolean = false) {
             val title = entry.arguments?.getString("title").orEmpty()
             CommentsScreen(navController, type, id, title)
         }
+        } // SwipeDismissableNavHost
+
+        // 打卡失败完整详情弹窗（不自动消失，用户看完点「知道了」关闭）
+        MessageDialog(
+            showDialog = scrobbleAlert != null,
+            title = "听歌打卡失败",
+            message = scrobbleAlert.orEmpty(),
+            onDismiss = { playback.dismissScrobbleAlert() }
+        )
     }
 }

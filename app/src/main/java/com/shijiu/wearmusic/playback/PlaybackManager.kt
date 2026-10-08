@@ -28,6 +28,7 @@ import com.ohmusic.app.data.remote.api.CloudSongApi
 import com.ohmusic.app.data.remote.NeteaseConstants
 import com.shijiu.wearmusic.MainActivity
 import com.shijiu.wearmusic.R
+import com.shijiu.wearmusic.data.AccountRepository
 import com.shijiu.wearmusic.data.AppPrefs
 import com.shijiu.wearmusic.data.MusicRepository
 import kotlinx.coroutines.CoroutineScope
@@ -64,6 +65,7 @@ class PlaybackManager(
     private val songApi: CloudSongApi,
     private val fmApi: CloudFmApi,
     private val musicRepo: MusicRepository,
+    private val accountRepo: AccountRepository,
     private val prefs: AppPrefs
 ) {
     private var player: ExoPlayer? = null
@@ -90,6 +92,18 @@ class PlaybackManager(
     private val _notice = MutableStateFlow<String?>(null)
     val notice: StateFlow<String?> = _notice.asStateFlow()
 
+    /**
+     * 打卡失败详情弹窗：轻提示几秒即逝、看不清失败原因，故失败时同时发布本事件，
+     * UI 层在任意页面弹出可滚动的完整消息弹窗；用户关闭后置空。
+     */
+    private val _scrobbleAlert = MutableStateFlow<String?>(null)
+    val scrobbleAlert: StateFlow<String?> = _scrobbleAlert.asStateFlow()
+
+    /** 关闭打卡失败弹窗（UI 层「知道了」按钮回调）。 */
+    fun dismissScrobbleAlert() {
+        _scrobbleAlert.value = null
+    }
+
     private val _playMode = MutableStateFlow(PlayMode.ORDER)
 
     /** 当前播放模式（顺序 / 随机 / 单曲循环），播放页循环切换。 */
@@ -112,6 +126,13 @@ class PlaybackManager(
     // 直链缓存：songId -> (抓取时间, url)
     private val urlCache = HashMap<Long, Pair<Long, String>>()
     private val scrobbled = HashSet<Long>()
+
+    /** 打卡失败次数：songId -> 已失败次数（成功或放弃后移除）。 */
+    private val scrobbleFails = HashMap<Long, Int>()
+
+    /** 游客模式"无法打卡"的提示每次进程只弹一次，避免每首歌都打扰。 */
+    @Volatile
+    private var guestScrobbleNotified = false
     private var consecutiveErrors = 0
 
     /** 单飞标记：同一时刻只允许一个"预解析下一首"协程。 */
@@ -315,8 +336,7 @@ class PlaybackManager(
                     val p = player ?: return@withContext
                     applyPlayModeToPlayer()
                     val items = _queue.value.map { s ->
-                        val resolved = if (s.songId == song.songId) url else null
-                        buildItem(s, resolved)
+                        buildItem(s, if (s.songId == song.songId) url else null)
                     }
                     p.setMediaItems(items, startIndex, 0L)
                     p.prepare()
@@ -551,7 +571,14 @@ class PlaybackManager(
         }
     }
 
-    /** 听歌打卡：播放过半或满 30 秒即向云端上报一次。 */
+    /**
+     * 听歌打卡：播放过半或满 30 秒即向云端上报一次。
+     *
+     * - 打卡必须归属到真实网易云账号：游客/未登录时服务端无从记账（ weblog 虽返回
+     *   成功但不会落到任何账号的听歌排行），直接跳过并提示登录，每次进程只提示一次；
+     * - 上报结果如实呈现：成功才提示「已打卡上报」，失败提示真实原因并小步重试，
+     *   连续 [SCROBBLE_MAX_RETRY] 次失败后放弃（不无限重试刷请求）。
+     */
     private fun checkScrobble(positionMs: Long, durationMs: Long) {
         val song = currentSong ?: return
         val songId = song.songId ?: return
@@ -559,11 +586,45 @@ class PlaybackManager(
         val reached = positionMs >= 30_000 ||
             (durationMs > 0 && positionMs >= durationMs / 2)
         if (!reached) return
-        scrobbled.add(songId)
+        if (!accountRepo.isLoggedIn) {
+            scrobbled.add(songId)
+            if (!guestScrobbleNotified) {
+                guestScrobbleNotified = true
+                postNotice("游客模式无法打卡，请先登录网易云账号")
+            }
+            return
+        }
         val seconds = positionMs / 1000
         scope.launch(Dispatchers.IO) {
-            val ok = runCatching { fmApi.scrobble(songId, seconds) }.isSuccess
-            if (ok) postNotice("已打卡上报：${song.title}")
+            val result = runCatching { fmApi.scrobble(song, seconds.toInt()) }
+            withContext(Dispatchers.Main) {
+                result.fold(
+                    onSuccess = {
+                        scrobbled.add(songId)
+                        scrobbleFails.remove(songId)
+                        postNotice("已打卡上报：${song.title}")
+                    },
+                    onFailure = { error ->
+                        val fails = (scrobbleFails[songId] ?: 0) + 1
+                        scrobbleFails[songId] = fails
+                        if (fails == 1) {
+                            val detail = "打卡未上报：${error.message ?: "网络异常"}\n\n" +
+                                "歌曲：${song.title} - ${song.artist}\n" +
+                                "已自动重试（最多 ${SCROBBLE_MAX_RETRY} 次）；" +
+                                "若持续失败，请检查手表网络能否直连 music.163.com"
+                            postNotice("打卡未上报：${error.message ?: "网络异常"}")
+                            // 轻提示看不清也留不住，同时弹可滚动的完整详情
+                            _scrobbleAlert.value = detail
+                        }
+                        if (fails >= SCROBBLE_MAX_RETRY) {
+                            // 多次失败后放弃本曲，避免逐秒重试刷请求；明确告知放弃
+                            scrobbled.add(songId)
+                            scrobbleFails.remove(songId)
+                            postNotice("打卡已重试${SCROBBLE_MAX_RETRY}次仍未成功，本曲放弃")
+                        }
+                    }
+                )
+            }
         }
     }
 
@@ -656,5 +717,8 @@ class PlaybackManager(
 
         /** 距曲目结束不足该时长即预解析下一首（后台续播关键窗口）。 */
         private const val PREFETCH_WINDOW_MS = 20_000L
+
+        /** 打卡上报连续失败该次数后放弃本曲。 */
+        private const val SCROBBLE_MAX_RETRY = 3
     }
 }

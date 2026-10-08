@@ -46,7 +46,8 @@ class AppContainer(context: Context) {
         accountRepo, songApi, searchApi, recommendApi, likeApi, playlistApi,
         driveApi, commentApi, fmApi, djApi, artistApi, albumApi, extraApi
     )
-    val playbackManager = PlaybackManager(appContext, appScope, songApi, fmApi, musicRepo, prefs)
+    val playbackManager =
+        PlaybackManager(appContext, appScope, songApi, fmApi, musicRepo, accountRepo, prefs)
 }
 
 /** 供非 Compose 场景（Service）获取容器。 */

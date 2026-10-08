@@ -1,6 +1,8 @@
 package com.ohmusic.app.data.remote.api
 
 import com.ohmusic.app.data.model.Song
+import com.ohmusic.app.data.remote.NcblScrobbler
+import com.ohmusic.app.data.remote.NeteaseApiException
 import com.ohmusic.app.data.remote.NeteaseClient
 import com.ohmusic.app.data.remote.dto.NeteaseSongDto
 import com.ohmusic.app.data.remote.dto.SongMapper
@@ -95,23 +97,37 @@ class CloudFmApi @Inject constructor(
     }
 
     /**
-     * 听歌打卡：向服务端上报一次播放，累积听歌排行数据。
+     * 听歌打卡：按桌面客户端 NCBL v3 协议上报一次播放。
      *
-     * 失败只记日志不打断播放——打卡是锦上添花，不能影响收听体验。
-     * `sourceid` 传 0（客户端拿不到稳定的歌单上下文，服务端接受 0）。
+     * ### 为什么不走网关的 `/scrobble`
+     * 2024 年起网易云对第三方 weblog 上报做了静默风控：`/scrobble`（weapi/eapi）
+     * 无论换哪个域名都返回假成功，但服务端不记账（实测 16 小时听歌排行无变化）。
+     * 唯一实测能落库的是桌面客户端的 NCBL 日志协议（对齐 SPlayer-Next 的
+     * scrobble_v1）：PLV+PLD 双日志经 clientlog3 上传，凭 `successfiles` 回执
+     * 确认，听歌排行数分钟内落库。加密与封装细节见 [NcblScrobbler]。
+     *
+     * @param song 在线曲目（本地曲目无 songId，直接抛错）
+     * @param playedSec 实际播放秒数
+     * @param sourceId 播放来源 id（歌单等）；缺省用歌曲自身 id
+     * @throws NeteaseApiException 未登录 / 服务端拒收 / 网络失败时抛出，
+     *   由调用方如实提示——打卡是否成功必须让用户知道
      */
-    suspend fun scrobble(songId: Long, seconds: Long): Boolean = withContext(Dispatchers.IO) {
-        runCatching {
-            client.post(
-                path = "/scrobble",
-                query = mapOf(
-                    "id" to songId.toString(),
-                    "sourceid" to "0",
-                    "time" to seconds.coerceAtLeast(0).toString(),
-                    "timestamp" to now()
-                )
-            )
-        }.isSuccess
+    suspend fun scrobble(song: Song, playedSec: Int, sourceId: Long? = null): Unit {
+        val songId = song.songId
+            ?: throw NeteaseApiException.parse("本地歌曲不参与听歌打卡")
+        val result = NcblScrobbler.scrobbleSuspend(
+            cookie = client.cookie(),
+            songId = songId,
+            playedSec = playedSec.coerceAtLeast(1),
+            totalSec = ((song.duration.coerceAtLeast(0)) / 1000).toInt()
+                .coerceAtLeast(playedSec.coerceAtLeast(1)),
+            title = song.title,
+            artist = song.artist,
+            sourceId = sourceId
+        )
+        if (!result.accepted) {
+            throw NeteaseApiException.parse(result.error ?: "打卡上报被服务端拒收")
+        }
     }
 
     private fun decodeSongs(array: JsonArray): List<NeteaseSongDto> =
