@@ -1,5 +1,8 @@
 package com.shijiu.wearmusic.ui
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import com.ohmusic.app.data.model.Song
 
 /**
@@ -17,9 +20,17 @@ object NavData {
     /** 待处理队列上下文标记。 */
     var pendingQueueTag: String? = null
 
+    /**
+     * 「歌曲百科」弹窗的目标歌曲：任意歌曲菜单（列表页 / 播放页）设置，
+     * 由全局挂载的 [com.shijiu.wearmusic.ui.wiki.SongWikiDialogHost]
+     * 观察消费（须为 Compose state，host 才能收到变更）。
+     */
+    var songWikiSong: Song? by mutableStateOf(null)
+
     fun clear() {
         pendingSong = null
         heartSeed = null
         pendingQueueTag = null
+        songWikiSong = null
     }
 }

@@ -16,6 +16,7 @@ object Routes {
     const val SEARCH = "search"
     const val CLOUD = "cloud"
     const val MINE = "mine"
+    const val RECORD = "record"
     const val PLAYLIST = "playlist/{id}"
     const val PLAYLIST_EDIT = "playlistEdit/{id}"
     const val CREATE_PLAYLIST = "createPlaylist"

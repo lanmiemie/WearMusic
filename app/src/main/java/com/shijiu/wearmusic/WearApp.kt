@@ -37,6 +37,8 @@ class AppContainer(context: Context) {
     val djApi = com.ohmusic.app.data.remote.api.DjApi(client, songApi)
     val artistApi = com.ohmusic.app.data.remote.api.ArtistApi(client, songApi)
     val albumApi = com.ohmusic.app.data.remote.api.AlbumApi(client, songApi)
+    val recordApi = com.ohmusic.app.data.remote.api.PlayRecordApi(client)
+    val wikiApi = com.ohmusic.app.data.remote.api.SongWikiApi(client)
     val extraApi = ExtraNeteaseApi(client)
 
     // ── 应用层 ──────────────────────────────────────────────────

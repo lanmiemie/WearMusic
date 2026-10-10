@@ -27,6 +27,7 @@ import androidx.wear.compose.material3.Icon
 import androidx.wear.compose.material3.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.BarChart
 import com.ohmusic.app.data.remote.api.CloudAlbumSummary
 import com.ohmusic.app.data.remote.api.CloudDj
 import com.ohmusic.app.data.remote.api.CloudPlaylist
@@ -102,6 +103,24 @@ fun MineScreen(nav: NavHostController) {
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     item { SectionTitle("我的音乐") }
+
+                    // ── 听歌排行 ──
+                    item {
+                        Button(
+                            onClick = { nav.navigate(Routes.RECORD) },
+                            colors = com.shijiu.wearmusic.ui.chipColors(false),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            androidx.wear.compose.material3.Icon(
+                                Icons.Filled.BarChart,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp),
+                                tint = NeteaseRed
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text("听歌排行", fontSize = 12.sp)
+                        }
+                    }
 
                     // ── 歌单 ──
                     item {

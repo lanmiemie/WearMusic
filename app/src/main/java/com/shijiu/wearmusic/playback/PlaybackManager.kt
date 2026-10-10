@@ -586,6 +586,8 @@ class PlaybackManager(
         val reached = positionMs >= 30_000 ||
             (durationMs > 0 && positionMs >= durationMs / 2)
         if (!reached) return
+        // 本地播放统计：与登录无关，达到打卡同一口径即记录（首次播放时间供「播放数据」展示）
+        prefs.recordLocalPlay(songId)
         if (!accountRepo.isLoggedIn) {
             scrobbled.add(songId)
             if (!guestScrobbleNotified) {

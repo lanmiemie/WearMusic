@@ -59,6 +59,7 @@ import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.ChatBubble
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LibraryAdd
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Pause
@@ -252,6 +253,9 @@ fun PlayerScreen(nav: NavHostController) {
                 song.songId?.let { id ->
                     add(MenuItem(Icons.Filled.ChatBubble, "查看歌曲评论") {
                         nav.navigate(Routes.comments(0, id, song.title))
+                    })
+                    add(MenuItem(Icons.Filled.Info, "歌曲百科") {
+                        NavData.songWikiSong = song
                     })
                 }
             }

@@ -66,10 +66,46 @@ class AppPrefs(context: Context) {
         sp.edit().remove(KEY_SEARCH_HISTORY).apply()
     }
 
+    // ── 本地播放统计 ──
+
+    /**
+     * 记录一次「有效播放」（达到 30 秒 / 过半时打卡的同一口径）。
+     *
+     * 网易云接口只给播放次数，没有首次播放时间——首次播放由本 App 自行记录：
+     * `songId -> 首次播放时间戳` 以 JSON map 存本地（几百首仅数 KB）。
+     * 已记录过的曲目只刷新不覆盖，保证首播时间不被篡改。
+     *
+     * @return 该曲目是否为本 App 内首次播放
+     */
+    fun recordLocalPlay(songId: Long, playedAt: Long = System.currentTimeMillis()): Boolean {
+        val map = localFirstPlays()
+        if (map.containsKey(songId)) return false
+        map[songId] = playedAt
+        sp.edit().putString(KEY_LOCAL_FIRST_PLAYS, map.toString()).apply()
+        return true
+    }
+
+    /** 查询某曲在本 App 的首次播放时间；无记录返回 null。 */
+    fun localFirstPlayedAt(songId: Long): Long? = localFirstPlays()[songId]
+
+    private fun localFirstPlays(): MutableMap<Long, Long> {
+        val raw = sp.getString(KEY_LOCAL_FIRST_PLAYS, null) ?: return mutableMapOf()
+        return runCatching {
+            val obj = org.json.JSONObject(raw)
+            val map = mutableMapOf<Long, Long>()
+            for (key in obj.keys()) {
+                val id = key.toLongOrNull() ?: continue
+                map[id] = obj.getLong(key)
+            }
+            map
+        }.getOrDefault(mutableMapOf())
+    }
+
     private companion object {
         const val KEY_BITRATE = "bitrate"
         const val KEY_LAST_LOGGED_IN = "last_session_logged_in"
         const val KEY_SEARCH_HISTORY = "search_history"
+        const val KEY_LOCAL_FIRST_PLAYS = "local_first_plays"
         const val MAX_HISTORY = 8
     }
 }

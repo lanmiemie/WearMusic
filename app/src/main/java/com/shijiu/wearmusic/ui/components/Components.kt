@@ -52,6 +52,7 @@ fun SongRow(
     song: Song,
     isCurrent: Boolean = false,
     indexLabel: String? = null,
+    trailingText: String? = null,
     onPlay: () -> Unit,
     onMenu: (() -> Unit)? = null
 ) {
@@ -82,6 +83,15 @@ fun SongRow(
                 overflow = TextOverflow.Ellipsis,
                 color = TextSecondary,
                 modifier = Modifier.basicMarquee()
+            )
+        }
+        trailingText?.let { count ->
+            Text(
+                count,
+                fontSize = 10.sp,
+                color = NeteaseRed.copy(alpha = 0.9f),
+                maxLines = 1,
+                modifier = Modifier.padding(horizontal = 3.dp)
             )
         }
         if (onMenu != null) {

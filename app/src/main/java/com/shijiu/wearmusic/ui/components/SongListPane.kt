@@ -35,6 +35,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.ChatBubble
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LibraryAdd
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
@@ -62,6 +63,8 @@ fun SongListPane(
     tailLoader: (suspend () -> List<Song>)? = null,
     headerExtra: (@Composable () -> Unit)? = null,
     extraMenuActions: (Song) -> List<MenuItem> = { emptyList() },
+    /** 行尾附加文本（如听歌排行的播放次数），返回 null 不显示。 */
+    trailingText: (Song) -> String? = { null },
     footer: (@Composable () -> Unit)? = null,
     onCoverClick: (() -> Unit)? = null
 ) {
@@ -141,6 +144,7 @@ fun SongListPane(
                 song = song,
                 isCurrent = playback.currentSong?.songId == song.songId,
                 indexLabel = "${i + 1}",
+                trailingText = trailingText(song),
                 onPlay = { playback.playQueue(songs, i, queueTag, tailLoader) },
                 onMenu = { menuSong = song }
             )
@@ -163,6 +167,9 @@ fun SongListPane(
                 song.songId?.let { id ->
                     add(MenuItem(Icons.Filled.ChatBubble, "歌曲评论") {
                         nav.navigate(Routes.comments(0, id, song.title))
+                    })
+                    add(MenuItem(Icons.Filled.Info, "歌曲百科") {
+                        NavData.songWikiSong = song
                     })
                 }
                 add(MenuItem(Icons.Filled.LibraryAdd, "收藏到歌单") {

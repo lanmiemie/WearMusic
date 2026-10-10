@@ -16,6 +16,7 @@ import com.shijiu.wearmusic.ui.album.AlbumDetailScreen
 import com.shijiu.wearmusic.ui.artist.ArtistScreen
 import com.shijiu.wearmusic.ui.comments.CommentsScreen
 import com.shijiu.wearmusic.ui.components.MessageDialog
+import com.shijiu.wearmusic.ui.wiki.SongWikiDialogHost
 import com.shijiu.wearmusic.ui.cloud.CloudScreen
 import com.shijiu.wearmusic.ui.daily.DailyScreen
 import com.shijiu.wearmusic.ui.dj.DjDetailScreen
@@ -27,6 +28,7 @@ import com.shijiu.wearmusic.ui.lists.RadarScreen
 import com.shijiu.wearmusic.ui.lists.ToplistScreen
 import com.shijiu.wearmusic.ui.login.LoginScreen
 import com.shijiu.wearmusic.ui.mine.MineScreen
+import com.shijiu.wearmusic.ui.record.RecordScreen
 import com.shijiu.wearmusic.ui.player.LyricsScreen
 import com.shijiu.wearmusic.ui.player.PlayerScreen
 import com.shijiu.wearmusic.ui.playlist.AddToPlaylistScreen
@@ -74,6 +76,7 @@ fun AppNavHost(forceLogin: Boolean = false) {
         composable(Routes.SEARCH) { SearchScreen(navController) }
         composable(Routes.CLOUD) { CloudScreen(navController) }
         composable(Routes.MINE) { MineScreen(navController) }
+        composable(Routes.RECORD) { RecordScreen(navController) }
         composable(Routes.CREATE_PLAYLIST) { CreatePlaylistScreen(navController) }
         composable(Routes.ABOUT) { AboutScreen() }
 
@@ -123,5 +126,8 @@ fun AppNavHost(forceLogin: Boolean = false) {
             message = scrobbleAlert.orEmpty(),
             onDismiss = { playback.dismissScrobbleAlert() }
         )
+
+        // 歌曲百科弹窗宿主（歌曲菜单的「歌曲百科」入口触发）
+        SongWikiDialogHost()
     }
 }
